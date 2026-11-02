@@ -881,3 +881,68 @@ th {
   margin-top: 8px;
   line-height: 1.65;
 }
+
+/* Pump control, people, roles */
+.pump-control {
+  display: grid;
+  gap: 12px;
+}
+
+.pump-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pump-buttons .btn {
+  flex: 1 1 140px;
+}
+
+.fieldset {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldset:disabled input {
+  background: #f1ece8;
+  color: var(--muted);
+}
+
+.device-people {
+  grid-column: 1 / -1;
+  padding: 14px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.members {
+  display: grid;
+  gap: 12px;
+}
+
+.member-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.member-list li:last-child {
+  border-bottom: 0;
+}

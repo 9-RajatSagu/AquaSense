@@ -11,6 +11,9 @@ function DeviceSettingsForm({ device, onSaved }: { device: Device; onSaved: () =
   const [capacity, setCapacity] = useState(String(device.settings.capacity_litres));
   const [low, setLow] = useState(String(device.settings.low_alert_pct));
   const [minutes, setMinutes] = useState(String(Math.round(device.settings.offline_after_s / 60)));
+  const [startPct, setStartPct] = useState(String(device.settings.start_pct));
+  const [stopPct, setStopPct] = useState(String(device.settings.stop_pct));
+  const isOwner = device.role === "owner";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -18,16 +21,21 @@ function DeviceSettingsForm({ device, onSaved }: { device: Device; onSaved: () =
   const capacityNum = Number(capacity);
   const lowNum = Number(low);
   const minutesNum = Number(minutes);
+  const startNum = Number(startPct);
+  const stopNum = Number(stopPct);
   const valid =
     name.trim().length > 0 &&
     name.trim().length <= 40 &&
     capacity !== "" && Number.isFinite(capacityNum) && capacityNum > 0 && capacityNum <= 100000 &&
     low !== "" && Number.isFinite(lowNum) && lowNum >= 0 && lowNum <= 100 &&
-    minutes !== "" && Number.isInteger(minutesNum) && minutesNum >= 1 && minutesNum <= 1440;
+    minutes !== "" && Number.isInteger(minutesNum) && minutesNum >= 1 && minutesNum <= 1440 &&
+    startPct !== "" && Number.isFinite(startNum) && startNum >= 5 && startNum <= 90 &&
+    stopPct !== "" && Number.isFinite(stopNum) && stopNum >= 20 && stopNum <= 100 &&
+    startNum + 10 <= stopNum;
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!valid) return;
+    if (!valid || !isOwner) return;
     setBusy(true);
     setError("");
     setSaved(false);
@@ -39,6 +47,8 @@ function DeviceSettingsForm({ device, onSaved }: { device: Device; onSaved: () =
           capacity_litres: capacityNum,
           low_alert_pct: lowNum,
           offline_after_s: minutesNum * 60,
+          start_pct: startNum,
+          stop_pct: stopNum,
         },
       });
       await onSaved();
@@ -59,6 +69,8 @@ function DeviceSettingsForm({ device, onSaved }: { device: Device; onSaved: () =
         </div>
       </div>
 
+      {!isOwner && <Notice tone="info">Only the owner of this device can change its settings.</Notice>}
+      <fieldset className="fieldset" disabled={!isOwner}>
       <label className="field">
         <span>Device name</span>
         <input type="text" maxLength={40} value={name} onChange={(e) => { setName(e.target.value); setSaved(false); }} required />
@@ -85,16 +97,30 @@ function DeviceSettingsForm({ device, onSaved }: { device: Device; onSaved: () =
         <small>The device sends data every few seconds. Use at least 2 minutes to avoid false offline states.</small>
       </label>
 
+      <label className="field">
+        <span>Start filling at or below (%)</span>
+        <input type="number" inputMode="decimal" min={5} max={90} step="any" value={startPct} onChange={(e) => { setStartPct(e.target.value); setSaved(false); }} required />
+        <small>The pump starts by itself when the level falls to this value.</small>
+      </label>
+
+      <label className="field">
+        <span>Stop filling at or above (%)</span>
+        <input type="number" inputMode="decimal" min={20} max={100} step="any" value={stopPct} onChange={(e) => { setStopPct(e.target.value); setSaved(false); }} required />
+        <small>The pump stops at this value. It must be at least 10% above the start level. The device uses the new values within a few seconds.</small>
+      </label>
+      </fieldset>
+
       {error && <Notice tone="bad">{error}</Notice>}
       {saved && <Notice tone="ok">Settings saved.</Notice>}
 
       <div>
-        <button className="btn btn-primary" type="submit" disabled={busy || !valid}>
+        <button className="btn btn-primary" type="submit" disabled={busy || !valid || !isOwner}>
           {busy ? "Saving" : "Save settings"}
         </button>
       </div>
       <p className="muted-text small">
-        Start and stop levels of the pump are set in the ESP32 sketch (<code>EMPTY_CM</code> and <code>FULL_CM</code>), because the device must keep working without the internet.
+        The device keeps the last start and stop levels it received, so automatic filling continues if the internet is lost. Tank height and the
+        full-level distance are set in the ESP32 sketch.
       </p>
     </form>
   );

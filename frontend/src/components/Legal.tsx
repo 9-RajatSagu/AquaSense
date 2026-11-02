@@ -35,7 +35,7 @@ const privacy: Section[] = [
     heading: "Who else handles your data",
     body: [
       "We use Supabase for the database and sign-in, and a hosting provider for the website and the API. They process data on our behalf and only to run the service. Their servers may be in other countries.",
-      "If you link a device to a second account using its Device ID and key, that account can see the device data. Only share the key with people you trust.",
+      "If the owner of a device invites you with a one-time code, you can see that device and switch its pump. People on the same device can see each other's email addresses and who is the owner. Pump commands record which account sent them.",
     ],
   },
   {
@@ -89,6 +89,7 @@ const terms: Section[] = [
   {
     heading: "Acceptable use",
     body: [
+      "Only invite people you trust. Anyone you share a device with can start and stop its pump, and the owner is responsible for the people on the device.",
       "Do not try to break, overload or gain access to parts of the service that are not yours. Do not use it to harm others, or to send data that is not from your own devices.",
     ],
   },

@@ -1,54 +1,36 @@
 import { useState, type FormEvent } from "react";
+import CopyField from "../components/CopyField";
 import { useDevices } from "../components/DevicesContext";
+import MembersPanel from "../components/MembersPanel";
 import { Notice, PageHeading, StatusTag } from "../components/Ui";
 import { API_BASE, api, errorMessage } from "../lib/api";
 import { timeAgo } from "../lib/format";
 import type { Device } from "../lib/types";
 
-type Mode = "new" | "link";
-
-function CopyField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  return (
-    <div className="copy-field">
-      <span className="copy-label">{label}</span>
-      <div className="copy-row">
-        <code>{value}</code>
-        <button type="button" className="btn btn-secondary btn-small" onClick={() => void copy()}>
-          {copied ? "Copied" : "Copy"}
-        </button>
-      </div>
-    </div>
-  );
-}
+type Mode = "new" | "join";
 
 export default function Devices() {
   const { devices, selected, select, refresh } = useDevices();
   const [mode, setMode] = useState<Mode>("new");
   const [name, setName] = useState("");
-  const [linkId, setLinkId] = useState("");
-  const [linkKey, setLinkKey] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{ device: Device; key: string } | null>(null);
-  const [linked, setLinked] = useState("");
+  const [joined, setJoined] = useState("");
+  const [openPeople, setOpenPeople] = useState("");
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError("");
+    setJoined("");
+  }
 
   async function createDevice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
-    setLinked("");
+    setJoined("");
     try {
       const result = await api<{ device: Device; device_key: string }>("/api/devices", { method: "POST", body: { name: name.trim() } });
       setCreated({ device: result.device, key: result.device_key });
@@ -62,19 +44,15 @@ export default function Devices() {
     }
   }
 
-  async function linkDevice(event: FormEvent<HTMLFormElement>) {
+  async function joinDevice(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
     setCreated(null);
     try {
-      const result = await api<{ device: Device }>("/api/devices/link", {
-        method: "POST",
-        body: { device_id: linkId.trim(), device_key: linkKey.trim() },
-      });
-      setLinked(result.device.name);
-      setLinkId("");
-      setLinkKey("");
+      const result = await api<{ device: Device }>("/api/invites/redeem", { method: "POST", body: { code: code.trim() } });
+      setJoined(result.device.name);
+      setCode("");
       select(result.device.device_id);
       await refresh();
     } catch (err) {
@@ -103,7 +81,7 @@ export default function Devices() {
       <PageHeading
         eyebrow="Hardware"
         title="Devices"
-        description="Each ESP32 has its own Device ID and key. Several accounts can watch the same device."
+        description="Each ESP32 has its own Device ID and key. Share a tank with other accounts using a one-time invite code."
       />
 
       <section className="panel">
@@ -120,7 +98,9 @@ export default function Devices() {
                 <div className="device-main">
                   <strong>{device.name}</strong>
                   <code>{device.device_id}</code>
-                  <span className="muted-text small">Last data: {timeAgo(device.last_seen)}</span>
+                  <span className="muted-text small">
+                    {device.role === "owner" ? "Owner" : "Member"} · Last data: {timeAgo(device.last_seen)}
+                  </span>
                 </div>
                 <StatusTag online={device.online} />
                 <div className="device-actions">
@@ -131,10 +111,23 @@ export default function Devices() {
                       Show
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    aria-expanded={openPeople === device.device_id}
+                    onClick={() => setOpenPeople(openPeople === device.device_id ? "" : device.device_id)}
+                  >
+                    People
+                  </button>
                   <button type="button" className="btn btn-danger btn-small" onClick={() => void removeDevice(device)}>
                     Remove
                   </button>
                 </div>
+                {openPeople === device.device_id && (
+                  <div className="device-people">
+                    <MembersPanel device={device} />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -143,11 +136,11 @@ export default function Devices() {
 
       <section className="panel">
         <div className="segmented" role="group" aria-label="Add a device">
-          <button type="button" className={mode === "new" ? "is-active" : ""} aria-pressed={mode === "new"} onClick={() => { setMode("new"); setError(""); }}>
+          <button type="button" className={mode === "new" ? "is-active" : ""} aria-pressed={mode === "new"} onClick={() => switchMode("new")}>
             New device
           </button>
-          <button type="button" className={mode === "link" ? "is-active" : ""} aria-pressed={mode === "link"} onClick={() => { setMode("link"); setError(""); }}>
-            Link existing device
+          <button type="button" className={mode === "join" ? "is-active" : ""} aria-pressed={mode === "join"} onClick={() => switchMode("join")}>
+            Join with code
           </button>
         </div>
 
@@ -157,6 +150,7 @@ export default function Devices() {
           <form className="form" onSubmit={createDevice}>
             <p className="body-text">
               Creates a Device ID and a secret key for a new ESP32. The key is shown once, so copy both values into the sketch straight away.
+              You become the owner of this device.
             </p>
             <label className="field">
               <span>Device name</span>
@@ -170,28 +164,25 @@ export default function Devices() {
           </form>
         )}
 
-        {mode === "link" && (
-          <form className="form" onSubmit={linkDevice}>
+        {mode === "join" && (
+          <form className="form" onSubmit={joinDevice}>
             <p className="body-text">
-              Already set up on another account? Enter that device&apos;s ID and key to watch the same tank from this account. Both accounts see the same data.
+              Ask the owner of a tank for an invite code. It works once and expires after 24 hours. You then see the same tank and can control the
+              pump from your own account. The device key is never shared.
             </p>
             <label className="field">
-              <span>Device ID</span>
-              <input type="text" placeholder="AQ-XXXX-XXXX" value={linkId} onChange={(e) => setLinkId(e.target.value)} autoCapitalize="characters" spellCheck={false} required />
-            </label>
-            <label className="field">
-              <span>Device key</span>
-              <input type="password" value={linkKey} onChange={(e) => setLinkKey(e.target.value)} autoComplete="off" required />
+              <span>Invite code</span>
+              <input type="text" placeholder="XXXX-XXXX" value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="characters" spellCheck={false} autoComplete="off" required />
             </label>
             <div>
-              <button className="btn btn-primary" type="submit" disabled={busy || linkId.trim() === "" || linkKey.trim() === ""}>
-                {busy ? "Linking" : "Link device"}
+              <button className="btn btn-primary" type="submit" disabled={busy || code.trim() === ""}>
+                {busy ? "Joining" : "Join device"}
               </button>
             </div>
           </form>
         )}
 
-        {linked && <Notice tone="ok">{linked} is now on your account.</Notice>}
+        {joined && <Notice tone="ok">{joined} is now on your account.</Notice>}
 
         {created && (
           <div className="created">

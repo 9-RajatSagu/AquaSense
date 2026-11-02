@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { useDevices } from "../components/DevicesContext";
+import PumpControl from "../components/PumpControl";
 import { EmptyState, MetricCard, Notice, PageHeading, StatusTag } from "../components/Ui";
 import { api } from "../lib/api";
 import { eventLabel, eventTone } from "../lib/events";
 import { formatDateTime, formatNumber, levelToLitres, timeAgo } from "../lib/format";
 import { Link } from "../lib/router";
-import type { EventRow } from "../lib/types";
+import type { EventRow, Summary } from "../lib/types";
 
 export default function Overview() {
   const { selected, loading, error } = useDevices();
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const deviceId = selected?.device_id ?? "";
 
   useEffect(() => {
@@ -23,6 +25,13 @@ export default function Overview() {
         if (!cancelled) setEvents(result.events);
       } catch {
         // Keep showing the last events if a refresh fails.
+      }
+      try {
+        const offset = -new Date().getTimezoneOffset();
+        const info = await api<Summary>(`/api/devices/${encodeURIComponent(id)}/summary?tz_offset_minutes=${offset}`);
+        if (!cancelled) setSummary(info);
+      } catch {
+        // Keep showing the last summary if a refresh fails.
       }
     }
 
@@ -153,18 +162,40 @@ export default function Overview() {
           <div className="panel-heading">
             <div>
               <h2>Pump</h2>
-              <p>Switched automatically by the device</p>
+              <p>Automatic, with manual control</p>
             </div>
+            <span className={`tag ${latest.pump_on && selected.online ? "tag-ok" : "tag-off"}`}>{pumpText}</span>
           </div>
           <p className="body-text">
-            The ESP32 starts the pump when the level is low and stops it when the tank is full. A safety timer stops the pump if a fill runs
-            too long, for example when the source container is empty.
+            The device starts the pump at {formatNumber(settings.start_pct, 0)}% and stops it at {formatNumber(settings.stop_pct, 0)}%. A safety
+            timer stops a run that takes too long.
           </p>
-          <div className="detail-row">
-            <span>State</span>
-            <strong>{pumpText}</strong>
+          <PumpControl device={selected} />
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Tank activity</h2>
+            <p>From the device records</p>
           </div>
-          <p className="muted-text small">You cannot switch the pump from this page. The device decides, so a lost connection never leaves it running.</p>
+        </div>
+        <div className="detail-row">
+          <span>Last fill started</span>
+          <strong>{summary?.last_fill_started ? formatDateTime(summary.last_fill_started) : "No record yet"}</strong>
+        </div>
+        <div className="detail-row">
+          <span>Last fill finished</span>
+          <strong>{summary?.last_fill_ended ? formatDateTime(summary.last_fill_ended) : "No record yet"}</strong>
+        </div>
+        <div className="detail-row">
+          <span>Last time the level was low</span>
+          <strong>{summary?.last_low_level ? formatDateTime(summary.last_low_level) : "No record yet"}</strong>
+        </div>
+        <div className="detail-row">
+          <span>Pump running today</span>
+          <strong>{summary ? `${formatNumber(summary.pump_minutes_today, 0)} min` : "--"}</strong>
         </div>
       </section>
 

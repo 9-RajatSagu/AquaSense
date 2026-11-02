@@ -7,6 +7,9 @@ const LABELS: Record<string, string> = {
   sudden_drop: "Sudden level drop",
   low_level: "Low level",
   device_online: "Device online",
+  command_done: "Command confirmed",
+  command_failed: "Command failed",
+  sensor_error: "Sensor error",
 };
 
 const TONES: Record<string, Tone> = {
@@ -16,6 +19,9 @@ const TONES: Record<string, Tone> = {
   sudden_drop: "bad",
   low_level: "warn",
   device_online: "ok",
+  command_done: "ok",
+  command_failed: "bad",
+  sensor_error: "bad",
 };
 
 export function eventLabel(kind: string): string {
